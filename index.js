@@ -1,30 +1,31 @@
-const stripeSecretKey = "sk_test_51IgGmWDzQOKNf3x7RQvnp6PGrEshY8OdLPqPFyBbTjMs1cfUsDUw1A0DVml70qnvhVZoCGFgXHcIeZwK55OihUP900cGC9nCtY";
-const stripe = require("stripe")(stripeSecretKey);
+var stripeSecretKey = "sk_test_51IgGmWDzQOKNf3x7RQvnp6PGrEshY8OdLPqPFyBbTjMs1cfUsDUw1A0DVml70qnvhVZoCGFgXHcIeZwK55OihUP900cGC9nCtY";
+var websiteUrl = "https://pointville.ag";
+var stripe = require("stripe")(stripeSecretKey);
 
 // BASE SETUP
 // =============================================================================
 
 // call the packages we need
-const express = require("express"); // call express
-const app = express(); // define our app using express
-const bodyParser = require("body-parser");
+var express = require("express"); // call express
+var app = express(); // define our app using express
+var bodyParser = require("body-parser");
 
 // configure app to use bodyParser()
 // this will let us get the data from a POST
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
-const port = process.env.PORT || 8080; // set our port
+var port = process.env.PORT || 8080; // set our port
 
 // ROUTES FOR OUR API
 // =============================================================================
-const router = express.Router(); // get an instance of the express Router
+var router = express.Router(); // get an instance of the express Router
 
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
 
 // more routes for our API will happen here
 router.post("/payment-intent", function (req, res) {
-    const body = req.body;
+    var body = req.body;
 
     // console.log("process payment", req.body);
 
@@ -33,32 +34,32 @@ router.post("/payment-intent", function (req, res) {
             confirm: true,
             payment_method_types: ['card'],
             payment_method: body.payment_method_id,
-            return_url: body.returnUrl,
+            return_url: websiteUrl,
             amount: body.amount,
             currency: body.currencyCode || "usd",
             source: body.token, // token
             description: body.email,
             receipt_email: body.email,
-            capture_method: body.captureMethod || 'automatic',
+            capture_method: body.captureMethod || "automatic",
         },
         function (err, paymentIntent) {
             // asynchronously called
             console.log(err);
             if (!err) {
-                res.json({ success: true, id: paymentIntent.id, client_secret: paymentIntent.client_secret });
+                res.json({success: true, id: paymentIntent.id, client_secret: paymentIntent.client_secret});
             } else {
-                res.json({ success: false, message: "Transaction error" + JSON.stringify(err) });
-                // res.json({
-                //     success: false,
-                //     message: "Transaction failed. Please check the card information and try again."
-                // });
+                // res.json({success: false, message: "Transaction error" + JSON.stringify(err)});
+                res.json({
+                    success: false,
+                    message: "Transaction failed. Please check the card information and try again."
+                });
             }
         }
     );
 });
 
 router.post("/payment", function (req, res) {
-    const body = req.body;
+    var body = req.body;
 
     // console.log("process payment", req.body);
 
@@ -73,7 +74,7 @@ router.post("/payment", function (req, res) {
             // asynchronously called
             console.log(err);
             if (!err) {
-                res.json({ success: true, message: "Payment has been charged!!" });
+                res.json({success: true, message: "Payment has been charged!!"});
             } else {
                 // res.json({success: false, message: "Transaction error" + JSON.stringify(err)});
                 res.json({
@@ -85,81 +86,23 @@ router.post("/payment", function (req, res) {
     );
 });
 
-
-router.post("/payment-intent-v2", function (req, res) {
-    const body = req.body;
-
-    // console.log("process payment", req.body);
-
-    stripe.paymentIntents.create(
+router.post("/subscription", function (req, res) {
+    var body = req.body;
+    stripe.customers.create(
         {
-            confirm: false,
-            payment_method_types: ['card'],
-            amount: body.amount,
-            currency: body.currencyCode || "usd",
-            source: body.token, // token
-            description: body.email,
-            receipt_email: body.email,
-            capture_method: body.captureMethod || 'automatic',
+            source: body.token,
+            plan: body.planId,
+            email: body.email
         },
-        function (err, paymentIntent) {
+        function (err, customer) {
             // asynchronously called
             if (!err) {
-                res.json({ success: true, id: paymentIntent.id, client_secret: paymentIntent.client_secret });
+                res.json({success: true, message: customer});
             } else {
-                // res.json({success: false, message: "Transaction error" + JSON.stringify(err)});
-                res.json({
-                    success: false,
-                    message: "Transaction failed. Please check the card information and try again."
-                });
+                res.json({success: false, message: err.message});
             }
         }
     );
-});
-
-router.post("/payment-intent-v3", async function (req, res) {
-    const { amount, request3dSecure, currencyCode, token, email, captureMethod, orderId } = req.body;
-
-    // console.log("process payment", req.body);
-    const customer = await stripe.customers.create({ email });
-
-    try {
-        const params = {
-            confirm: false,
-            customer: customer.id,
-            payment_method_types: ['card'],
-            payment_method_options: {
-                card: {
-                    request_three_d_secure: request3dSecure || 'automatic',
-                },
-            },
-            metadata: {
-                order_id: orderId,
-            },
-            amount: amount,
-            currency: currencyCode || "usd",
-            source: token, // token
-            description: email,
-            receipt_email: email,
-            capture_method: captureMethod || 'automatic',
-        }
-        const paymentIntent = await stripe.paymentIntents.create(params);
-        res.json({ success: true, id: paymentIntent.id, client_secret: paymentIntent.client_secret });
-    } catch (error) {
-        res.json({
-            success: false,
-            message: "Transaction failed. Please check the card information and try again."
-        });
-    }
-});
-
-router.get("/payment-intent/:id", async (req, res) => {
-    try {
-        const paymentIntent = await stripe.paymentIntents.retrieve(req.params.id)
-        res.send(paymentIntent)
-    } catch (error) {
-        res.send(error)
-    }
 });
 
 // REGISTER OUR ROUTES -------------------------------
